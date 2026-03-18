@@ -138,7 +138,7 @@ Learned pattern:
 
 ### Error: "Script fails with ImportError"
 Cause: hooks/lib/learning_db.py not found or path incorrect
-Solution: Verify working directory is the repo root. Run from the ai-overkill directory.
+Solution: Verify working directory is the repo root. Run from the claude-code-toolkit directory.
 
 ### Error: "Database locked"
 Cause: Another process holds the SQLite lock

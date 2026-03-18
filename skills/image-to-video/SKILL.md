@@ -141,7 +141,7 @@ The script creates parent directories automatically. Verify the target directory
 **Step 1: Run the script**
 
 ```bash
-python3 $HOME/ai-overkill/skills/image-to-video/scripts/image_to_video.py \
+python3 $HOME/claude-code-toolkit/skills/image-to-video/scripts/image_to_video.py \
   --image /absolute/path/to/image.png \
   --audio /absolute/path/to/audio.mp3 \
   --output /absolute/path/to/output.mp4 \
@@ -152,7 +152,7 @@ python3 $HOME/ai-overkill/skills/image-to-video/scripts/image_to_video.py \
 For workspace batch mode (processes all matched pairs in `workspace/input/`):
 
 ```bash
-python3 $HOME/ai-overkill/skills/image-to-video/scripts/image_to_video.py \
+python3 $HOME/claude-code-toolkit/skills/image-to-video/scripts/image_to_video.py \
   --process-workspace \
   --visualization waveform
 ```

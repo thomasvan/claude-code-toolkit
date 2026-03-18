@@ -91,7 +91,7 @@ This skill operates as an operator for routing table maintenance workflows, conf
 **Step 1: Run scan script**
 
 ```bash
-python3 ~/.claude/skills/routing-table-updater/scripts/scan.py --repo $HOME/ai-overkill
+python3 ~/.claude/skills/routing-table-updater/scripts/scan.py --repo $HOME/claude-code-toolkit
 ```
 
 **Step 2: Validate scan output**
@@ -179,7 +179,7 @@ If gate fails:
 **Step 1: Run update script with backup**
 
 ```bash
-python3 ~/.claude/skills/routing-table-updater/scripts/update_routing.py --input routing_entries.json --target $HOME/ai-overkill/commands/do.md --backup
+python3 ~/.claude/skills/routing-table-updater/scripts/update_routing.py --input routing_entries.json --target $HOME/claude-code-toolkit/commands/do.md --backup
 ```
 
 **Step 2: Verify backup exists**
@@ -218,7 +218,7 @@ On validation failure: automatic restore from backup. Report error details.
 **Goal**: Update command files with current skill/agent references.
 
 ```bash
-python3 ~/.claude/skills/routing-table-updater/scripts/update_commands.py --commands-dir $HOME/ai-overkill/commands --metadata metadata.json --backup
+python3 ~/.claude/skills/routing-table-updater/scripts/update_commands.py --commands-dir $HOME/claude-code-toolkit/commands --metadata metadata.json --backup
 ```
 
 Update process:
@@ -235,7 +235,7 @@ Update process:
 **Goal**: Final validation of all routing tables.
 
 ```bash
-python3 ~/.claude/skills/routing-table-updater/scripts/validate.py --target $HOME/ai-overkill/commands/do.md
+python3 ~/.claude/skills/routing-table-updater/scripts/validate.py --target $HOME/claude-code-toolkit/commands/do.md
 ```
 
 Verification checks:

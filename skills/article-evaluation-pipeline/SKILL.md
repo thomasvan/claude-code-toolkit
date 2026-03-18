@@ -113,7 +113,7 @@ Detect voice profile from source or context:
 **Step 1: Voice pattern validation**
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py validate \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py validate \
   --content /tmp/article-evaluation.md \
   --voice [voice-name] \
   --format json
@@ -124,7 +124,7 @@ Pass criteria: Score >= 60, zero hard errors.
 **Step 2: Banned pattern check**
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py check-banned \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py check-banned \
   --content /tmp/article-evaluation.md
 ```
 
@@ -214,7 +214,7 @@ Result: Fast pass/fail with scores, no wabi-sabi breakdown
 ### Error: "Voice validator script not found"
 Cause: `scripts/voice_validator.py` not at expected path or not executable
 Solution:
-1. Verify path: `ls $HOME/ai-overkill/scripts/voice_validator.py`
+1. Verify path: `ls $HOME/claude-code-toolkit/scripts/voice_validator.py`
 2. Check permissions: `chmod +x` if needed
 3. If missing, cannot proceed -- deterministic validation is non-negotiable
 

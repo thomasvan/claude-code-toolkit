@@ -79,7 +79,7 @@ This skill operates as an operator for voice content generation, configuring Cla
 **Step 1: Locate voice directory**
 
 ```bash
-ls $HOME/ai-overkill/skills/voice-{name}/
+ls $HOME/claude-code-toolkit/skills/voice-{name}/
 ```
 
 **Step 2: Load required files**
@@ -183,9 +183,9 @@ CONTENT
 **Step 1: Execute validation**
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py validate \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py validate \
   --content /tmp/voice-content-draft.md \
-  --profile $HOME/ai-overkill/skills/voice-{name}/profile.json \
+  --profile $HOME/claude-code-toolkit/skills/voice-{name}/profile.json \
   --voice {name} \
   --format json
 ```
@@ -326,7 +326,7 @@ Result: Validation report showing pass/fail status and specific violations
 Cause: Voice name misspelled or voice directory does not exist
 Solution:
 1. Check spelling of voice name
-2. List available voices: `ls $HOME/ai-overkill/skills/voice-*/`
+2. List available voices: `ls $HOME/claude-code-toolkit/skills/voice-*/`
 3. Create new voice using `voice-calibrator` skill
 
 ### Error: "Profile or Config Missing"
@@ -341,7 +341,7 @@ Cause: File not found, invalid JSON, or Python environment issue
 Solution:
 1. Verify content file path exists
 2. Check Python 3 is available: `python3 --version`
-3. Test script directly: `python3 $HOME/ai-overkill/scripts/voice_validator.py --help`
+3. Test script directly: `python3 $HOME/claude-code-toolkit/scripts/voice_validator.py --help`
 4. Verify profile.json is valid JSON
 
 ### Error: "Validation Failed After 3 Iterations"

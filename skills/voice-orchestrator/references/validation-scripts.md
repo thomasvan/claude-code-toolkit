@@ -5,9 +5,9 @@ Commands and exit codes for the deterministic voice validation scripts.
 ## Full Validation
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py validate \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py validate \
   --content /path/to/content.md \
-  --profile $HOME/ai-overkill/skills/voice-{name}/profile.json \
+  --profile $HOME/claude-code-toolkit/skills/voice-{name}/profile.json \
   --voice {name} \
   --format json
 ```
@@ -15,7 +15,7 @@ python3 $HOME/ai-overkill/scripts/voice_validator.py validate \
 ## Check Banned Patterns Only (Fast)
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py check-banned \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py check-banned \
   --content /path/to/content.md \
   --voice {name} \
   --format json
@@ -24,16 +24,16 @@ python3 $HOME/ai-overkill/scripts/voice_validator.py check-banned \
 ## Check Rhythm Only
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py check-rhythm \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py check-rhythm \
   --content /path/to/content.md \
-  --profile $HOME/ai-overkill/skills/voice-{name}/profile.json \
+  --profile $HOME/claude-code-toolkit/skills/voice-{name}/profile.json \
   --format json
 ```
 
 ## Analyze Writing Samples
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_analyzer.py analyze \
+python3 $HOME/claude-code-toolkit/scripts/voice_analyzer.py analyze \
   --samples /path/to/samples/ \
   --output /path/to/profile.json
 ```

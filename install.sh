@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# AI Overkill - Installation Script
+# Claude Code Toolkit - Installation Script
 #
-# This script sets up the AI Overkill agent ecosystem in your Claude Code environment.
+# This script sets up the Claude Code Toolkit agent ecosystem in your Claude Code environment.
 #
 # Usage:
 #   ./install.sh              # Interactive install
@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║                AI Overkill - Installation Script               ║${NC}"
+echo -e "${BLUE}║                Claude Code Toolkit - Installation Script               ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -115,7 +115,7 @@ check_python() {
 
 # Function to uninstall
 uninstall() {
-    echo -e "${YELLOW}Uninstalling AI Overkill...${NC}"
+    echo -e "${YELLOW}Uninstalling Claude Code Toolkit...${NC}"
 
     # Remove symlinks or directories we created
     for item in agents skills hooks commands scripts; do

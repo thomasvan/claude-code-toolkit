@@ -156,7 +156,7 @@ Always include negative constraints: "no text", "no labels", "character only"
 **Step 1: Run generation**
 
 ```bash
-python3 $HOME/ai-overkill/skills/gemini-image-generator/scripts/generate_image.py \
+python3 $HOME/claude-code-toolkit/skills/gemini-image-generator/scripts/generate_image.py \
   --prompt "YOUR_PROMPT_HERE" \
   --output /absolute/path/to/output.png \
   --model gemini-3-pro-image-preview
@@ -164,7 +164,7 @@ python3 $HOME/ai-overkill/skills/gemini-image-generator/scripts/generate_image.p
 
 For batch mode:
 ```bash
-python3 $HOME/ai-overkill/skills/gemini-image-generator/scripts/generate_image.py \
+python3 $HOME/claude-code-toolkit/skills/gemini-image-generator/scripts/generate_image.py \
   --batch /path/to/prompts.txt \
   --output-dir /absolute/path/to/output/ \
   --model gemini-2.5-flash-image
@@ -210,7 +210,7 @@ Provide the user with:
 
 ### generate_image.py
 
-**Location**: `$HOME/ai-overkill/skills/gemini-image-generator/scripts/generate_image.py`
+**Location**: `$HOME/claude-code-toolkit/skills/gemini-image-generator/scripts/generate_image.py`
 
 | Argument | Required | Description |
 |----------|----------|-------------|

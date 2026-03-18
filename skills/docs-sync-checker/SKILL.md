@@ -79,7 +79,7 @@ The 4-phase workflow (Scan, Cross-Reference, Detect, Report) ensures systematic 
 **Step 1: Run the scan script**
 
 ```bash
-python3 scripts/scan_tools.py --repo-root $HOME/ai-overkill
+python3 scripts/scan_tools.py --repo-root $HOME/claude-code-toolkit
 ```
 
 **Step 2: Validate discovery results**
@@ -118,7 +118,7 @@ YAML errors: [N] (must be 0 to proceed)
 **Step 1: Run the documentation parser**
 
 ```bash
-python3 scripts/parse_docs.py --repo-root $HOME/ai-overkill --scan-results /tmp/scan_results.json
+python3 scripts/parse_docs.py --repo-root $HOME/claude-code-toolkit --scan-results /tmp/scan_results.json
 ```
 
 **Step 2: Parse each documentation file**

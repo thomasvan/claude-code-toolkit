@@ -6,21 +6,21 @@
 
 ## Installation
 
-Before using AI Overkill, run the installer:
+Before using Claude Code Toolkit, run the installer:
 
 ```bash
-cd ~/ai-overkill
+cd ~/claude-code-toolkit
 ./install.sh
 ```
 
-**Alternative (bootstrap via Claude):** Start Claude Code in the ai-overkill directory. The sync hook will automatically copy agents, skills, hooks, and commands to `~/.claude/`.
+**Alternative (bootstrap via Claude):** Start Claude Code in the claude-code-toolkit directory. The sync hook will automatically copy agents, skills, hooks, and commands to `~/.claude/`.
 
 ```bash
-cd ~/ai-overkill
+cd ~/claude-code-toolkit
 claude
 ```
 
-> **Note:** The initial sync must run from the ai-overkill directory. After that, hooks work globally from any directory.
+> **Note:** The initial sync must run from the claude-code-toolkit directory. After that, hooks work globally from any directory.
 
 ---
 

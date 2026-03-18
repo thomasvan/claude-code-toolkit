@@ -198,9 +198,9 @@ content/[site]/test/[subject]-article.md
 **Step 1: Run validator**
 
 ```bash
-python3 $HOME/ai-overkill/scripts/voice_validator.py validate \
+python3 $HOME/claude-code-toolkit/scripts/voice_validator.py validate \
   --content /path/to/article-draft.md \
-  --profile $HOME/ai-overkill/skills/voice-[name]/profile.json \
+  --profile $HOME/claude-code-toolkit/skills/voice-[name]/profile.json \
   --voice [name] \
   --format json
 ```
