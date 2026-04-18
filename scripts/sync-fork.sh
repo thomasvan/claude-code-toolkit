@@ -16,6 +16,6 @@ echo "==> Rebasing onto upstream/$BRANCH..."
 git rebase "upstream/$BRANCH"
 
 echo "==> Pushing to origin/$BRANCH..."
-git push origin "$BRANCH"
+git push --force-with-lease origin "$BRANCH"
 
 echo "✓ Fork is up to date with upstream/$BRANCH"
