@@ -229,15 +229,25 @@ Steps:
 1. Query for graduation candidates:
    ```bash
    cd ${DREAM_REPO_DIR} && python3 -c "
-   import sys
+   import sys, os
    sys.path.insert(0, 'hooks/lib')
    from learning_db_v2 import query_graduation_candidates
    import json
-   candidates = query_graduation_candidates(min_confidence=0.9, min_observations=3, limit=10)
+   # Configurable thresholds via env vars; bootstrap defaults are lower
+   # to avoid a cold-start deadlock where nothing graduates because
+   # auto-dream hasn't run enough cycles to reinforce observations.
+   min_conf = float(os.environ.get('DREAM_GRAD_MIN_CONFIDENCE', '0.7'))
+   min_obs  = int(os.environ.get('DREAM_GRAD_MIN_OBSERVATIONS', '1'))
+   candidates = query_graduation_candidates(min_confidence=min_conf, min_observations=min_obs, limit=10)
    print(json.dumps(candidates, indent=2))
    "
    ```
    If no candidates are found or the query fails, skip this phase and note "No graduation candidates" in the report.
+
+   **Threshold guidance**: The defaults (`0.7` confidence, `1` observation) are intentionally
+   low for bootstrapping new toolkits. Once 10+ learnings have been graduated, raise to
+   `DREAM_GRAD_MIN_CONFIDENCE=0.85 DREAM_GRAD_MIN_OBSERVATIONS=2` to reduce noise.
+   At 50+ graduated, use the original strict thresholds (`0.9` / `3`).
 
 2. For each candidate, evaluate graduation readiness using these criteria:
    - **REJECT** if the learning is generic advice the agent already knows (e.g., "use proper error handling")
