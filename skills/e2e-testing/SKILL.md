@@ -143,7 +143,12 @@ See `references/templates.md` for the full Flaky Test Quarantine Protocol.
 2. **LLM triage** (only after deterministic checks pass):
    - For each failed test, identify whether it is: (a) a broken assertion, (b) a selector mismatch, (c) a timing/async issue, or (d) an application bug.
    - Categorize flaky tests for quarantine vs. fix.
-3. Write `e2e-report.md` using the report template in `references/templates.md`.
+3. **Temp-instrumentation cleanup gate** -- scan for leftover debug/temp code before finalizing:
+   ```bash
+   rg -n "\[e2e-temp\]|console\.log.*debug|TEMP_LOG|e2e-temp-log" --type ts --type js . || echo "CLEAN"
+   ```
+   If any matches are found, remove them before proceeding. This prevents recurring temp-instrumentation leaks (a known pattern in this toolkit).
+4. Write `e2e-report.md` using the report template in `references/templates.md`.
 
 **Artifact:** `e2e-report.md`.
 
