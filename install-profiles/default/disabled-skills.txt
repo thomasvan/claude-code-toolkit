@@ -1,0 +1,52 @@
+# Skills disabled by the default profile.
+# One skill directory name per line. Blank lines and # comments are ignored.
+
+# Content
+anti-ai-editor
+content-calendar
+content-engine
+create-voice
+joy-check
+professional-communication
+series-planner
+topic-brainstormer
+voice-validator
+voice-writer
+
+# Publishing / Media
+publish
+wordpress-live-validation
+x-api
+pptx-generator
+gemini-image-generator
+nano-banana-builder
+image-to-video
+video-editing
+
+# Frontend / Game
+distinctive-frontend-design
+frontend-slides
+threejs-builder
+webgl-card-effects
+game-asset-generator
+game-pipeline
+motion-pipeline
+phaser-gamedev
+
+# Infrastructure
+cobalt-core
+endpoint-validator
+perses
+
+# Languages
+go-patterns
+sapcc-audit
+sapcc-review
+kotlin-coroutines
+kotlin-testing
+swift-concurrency
+swift-testing
+
+# Documentation / Decision Support
+csuite
+docs-sync-checker
