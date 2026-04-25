@@ -294,6 +294,31 @@ def write_manifest(
     write_json(home / ".claude" / ".custom-install-manifest.json", manifest, dry_run)
 
 
+def run_git(args: list[str], repo_root: Path, dry_run: bool = False) -> subprocess.CompletedProcess:
+    if dry_run:
+        print(f"Would run: {' '.join(args)}")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+    return subprocess.run(args, cwd=repo_root, check=True, text=True, capture_output=True)
+
+
+def ensure_tracked_worktree_clean(repo_root: Path, dry_run: bool = False) -> None:
+    if dry_run:
+        print("Would check tracked worktree cleanliness")
+        return
+    result = run_git(["git", "status", "--porcelain", "--untracked-files=no"], repo_root)
+    if result.stdout.strip():
+        raise RuntimeError("Tracked worktree changes are present; commit or stash them before syncing upstream.")
+
+
+def sync_upstream_main(repo_root: Path, dry_run: bool = False) -> None:
+    """Fetch upstream, merge upstream/main into main, and push main to origin."""
+    ensure_tracked_worktree_clean(repo_root, dry_run)
+    run_git(["git", "fetch", "upstream"], repo_root, dry_run)
+    run_git(["git", "switch", "main"], repo_root, dry_run)
+    run_git(["git", "merge", "upstream/main"], repo_root, dry_run)
+    run_git(["git", "push", "origin", "main"], repo_root, dry_run)
+
+
 def install(profile: Path, home: Path, dry_run: bool = False) -> None:
     disabled_skills = read_name_file(profile / "disabled-skills.txt")
     disabled_agents = read_name_file(profile / "disabled-agents.txt")
@@ -330,12 +355,24 @@ def main() -> int:
     parser.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--sync-upstream-main",
+        action="store_true",
+        help="Before installing, fetch upstream, merge upstream/main into local main, and push main to origin.",
+    )
     args = parser.parse_args()
 
     profile = args.profile.resolve()
     if not profile.is_dir():
         print(f"Profile not found: {profile}", file=sys.stderr)
         return 1
+
+    if args.sync_upstream_main:
+        try:
+            sync_upstream_main(REPO_ROOT, dry_run=args.dry_run)
+        except (RuntimeError, subprocess.CalledProcessError) as exc:
+            print(f"Upstream sync failed: {exc}", file=sys.stderr)
+            return 1
 
     install(profile=profile, home=args.home.expanduser().resolve(), dry_run=args.dry_run)
     return 0
