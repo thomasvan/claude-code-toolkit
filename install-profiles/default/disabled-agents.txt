@@ -1,0 +1,23 @@
+# Agents disabled by the default profile.
+# One agent name per line, without the .md suffix.
+
+# Content
+technical-journalist-writer
+
+# Documentation
+technical-documentation-engineer
+
+# Frontend / Game
+combat-effects-upgrade
+pixijs-combat-renderer
+rive-skeletal-animator
+
+
+# Infrastructure
+perses-engineer
+
+
+# Languages
+golang-general-engineer
+golang-general-engineer-compact
+swift-general-engineer

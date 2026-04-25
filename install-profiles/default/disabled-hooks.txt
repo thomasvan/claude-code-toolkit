@@ -1,0 +1,7 @@
+# Hooks disabled by the default profile.
+# sync-to-user-claude.py is intentionally disabled so future session starts
+# do not repopulate the full upstream toolkit after a filtered install.
+
+sync-to-user-claude.py
+sapcc-go-detector.py
+perses-mcp-injector.py
