@@ -8,7 +8,6 @@ upstream behavior intact while deploying a smaller personal subset.
 from __future__ import annotations
 
 import argparse
-import filecmp
 import importlib.util
 import json
 import os
@@ -61,17 +60,24 @@ def remove_path(path: Path, dry_run: bool = False) -> None:
 
 
 def copy_entry(source: Path, target: Path, dry_run: bool = False) -> None:
+    """Symlink ``target`` to ``source`` so updates from upstream propagate via ``git pull``.
+
+    A real (non-symlink) ``target`` is replaced. If ``target`` is already a symlink
+    pointing at ``source`` it is left in place.
+    """
+    source = source.resolve()
     if dry_run:
-        print(f"Would copy {source} -> {target}")
+        print(f"Would symlink {target} -> {source}")
         return
-    if source.is_file() and target.exists() and target.is_file() and filecmp.cmp(source, target, shallow=False):
-        return
+    if target.is_symlink():
+        try:
+            if Path(os.readlink(target)) == source:
+                return
+        except OSError:
+            pass
     remove_path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
-    if source.is_dir():
-        shutil.copytree(source, target, symlinks=True)
-    else:
-        shutil.copy2(source, target)
+    target.symlink_to(source)
 
 
 def load_json(path: Path) -> dict[str, Any]:
