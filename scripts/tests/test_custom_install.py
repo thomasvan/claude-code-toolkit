@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import os
 import shutil
@@ -12,6 +13,15 @@ PROFILE = REPO_ROOT / "install-profiles" / "default"
 
 if shutil.which("python3") is None:
     pytest.skip("python3 not available on this platform", allow_module_level=True)
+
+
+def _load_custom_install_module():
+    spec = importlib.util.spec_from_file_location("custom_install", CUSTOM_INSTALL)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _run_custom_install(fake_home: Path, use_explicit_profile: bool = True) -> subprocess.CompletedProcess:
@@ -145,3 +155,26 @@ def test_custom_install_replaces_component_symlinks_with_real_dirs(fake_home: Pa
     assert not (codex_dir / "skills").is_symlink()
     assert (claude_dir / "skills" / "do" / "SKILL.md").exists()
     assert (codex_dir / "skills" / "do" / "SKILL.md").exists()
+
+
+def test_sync_upstream_main_runs_expected_git_sequence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    module = _load_custom_install_module()
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs.get("cwd")))
+        if args == ["git", "status", "--porcelain", "--untracked-files=no"]:
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    module.sync_upstream_main(tmp_path)
+
+    assert calls == [
+        (["git", "status", "--porcelain", "--untracked-files=no"], tmp_path),
+        (["git", "fetch", "upstream"], tmp_path),
+        (["git", "switch", "main"], tmp_path),
+        (["git", "merge", "upstream/main"], tmp_path),
+        (["git", "push", "origin", "main"], tmp_path),
+    ]
