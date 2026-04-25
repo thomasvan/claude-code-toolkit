@@ -11,6 +11,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -221,9 +222,131 @@ def filter_settings_hooks(settings: dict[str, Any], disabled_hooks: set[str]) ->
 
 def sync_claude_settings(claude_dir: Path, disabled_hooks: set[str], dry_run: bool) -> None:
     target = claude_dir / "settings.json"
-    settings = load_json(REPO_ROOT / ".claude" / "settings.json")
-    filtered = filter_settings_hooks(settings, disabled_hooks)
+    repo_settings = load_json(REPO_ROOT / ".claude" / "settings.json")
+    # Merge over an existing user settings.json the same way install.sh does:
+    # repo's hooks block is authoritative, but other user keys are preserved.
+    try:
+        existing = load_json(target)
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing = {}
+
+    # Timestamped backup before overwriting (matches install.sh behavior).
+    if target.exists() and not dry_run:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = target.with_suffix(f".json.backup.{ts}")
+        shutil.copy2(target, backup)
+        try:
+            os.chmod(backup, 0o600)
+        except OSError:
+            pass
+
+    merged = dict(existing)
+    merged["hooks"] = repo_settings.get("hooks", {})
+    merged.setdefault("attribution", repo_settings.get("attribution", {"commit": "", "pr": ""}))
+    filtered = filter_settings_hooks(merged, disabled_hooks)
     write_json(target, filtered, dry_run)
+
+
+def install_python_deps(dry_run: bool = False) -> None:
+    """Install requirements.txt via pip with --break-system-packages / --user fallback."""
+    requirements = REPO_ROOT / "requirements.txt"
+    if not requirements.exists():
+        return
+    if dry_run:
+        print(f"Would pip install -r {requirements}")
+        return
+
+    base = [sys.executable, "-m", "pip", "install", "-r", str(requirements), "--quiet"]
+    help_out = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    if "--break-system-packages" in help_out:
+        base.append("--break-system-packages")
+
+    for extra in ([], ["--user"]):
+        result = subprocess.run(base + extra, capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            print(f"Python deps installed{' (user mode)' if extra else ''}")
+            return
+    print("WARNING: pip install failed; run manually:", " ".join(base), file=sys.stderr)
+
+
+def harden_permissions(claude_dir: Path, dry_run: bool = False) -> None:
+    """Apply ADR-122 permission hardening to user-data files in ~/.claude."""
+    if dry_run:
+        print(f"Would chmod 700 {claude_dir} and 600 sensitive files")
+        return
+    targets: list[tuple[Path, int]] = [
+        (claude_dir, 0o700),
+        (claude_dir / "learning", 0o700),
+        (claude_dir / "settings.json", 0o600),
+        (claude_dir / "history.jsonl", 0o600),
+    ]
+    for path, mode in targets:
+        if path.exists():
+            try:
+                os.chmod(path, mode)
+            except OSError:
+                pass
+    # Newest backup also gets 600.
+    backups = sorted(claude_dir.glob("settings.json.backup.*"), reverse=True)
+    if backups:
+        try:
+            os.chmod(backups[0], 0o600)
+        except OSError:
+            pass
+
+
+def ensure_local_overlay(dry_run: bool = False) -> None:
+    """Create .local/{agents,skills} overlay dirs and seed from .local.example if empty."""
+    local_dir = REPO_ROOT / ".local"
+    if dry_run:
+        print(f"Would ensure {local_dir}/agents and {local_dir}/skills exist")
+        return
+    (local_dir / "agents").mkdir(parents=True, exist_ok=True)
+    (local_dir / "skills").mkdir(parents=True, exist_ok=True)
+    example = REPO_ROOT / ".local.example"
+    if example.is_dir():
+        existing = [p for p in local_dir.rglob("*") if p.is_file() and p.name != ".gitkeep"]
+        if not existing:
+            for src in example.iterdir():
+                dst = local_dir / src.name
+                if src.is_dir():
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src, dst)
+
+
+def regenerate_indexes(dry_run: bool = False) -> None:
+    """Run repo INDEX generators (only matters when private components exist)."""
+    if dry_run:
+        print("Would regenerate skills/INDEX.json and agents/INDEX.json")
+        return
+    for script in ("generate-skill-index.py", "generate-agent-index.py"):
+        path = REPO_ROOT / "scripts" / script
+        if path.exists():
+            subprocess.run([sys.executable, str(path)], capture_output=True, text=True, check=False)
+
+
+def warn_codex_cli_version() -> None:
+    if not shutil.which("codex"):
+        return
+    try:
+        out = subprocess.run(["codex", "--version"], capture_output=True, text=True, check=False).stdout
+    except OSError:
+        return
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", out)
+    if not match:
+        return
+    major, minor, patch = (int(x) for x in match.groups())
+    if (major, minor, patch) < (0, 114, 0):
+        print(
+            f"WARNING: Codex CLI {major}.{minor}.{patch} is below 0.114.0; hooks may not activate.",
+            file=sys.stderr,
+        )
 
 
 def load_codex_hook_generator():
@@ -335,6 +458,10 @@ def install(profile: Path, home: Path, dry_run: bool = False) -> None:
     ensure_real_dir(claude_dir, dry_run)
     ensure_real_dir(codex_dir, dry_run)
 
+    # Regenerate repo INDEX.json files first so private components (if any)
+    # are included in the filtered INDEXes we write to ~/.claude.
+    regenerate_indexes(dry_run)
+
     skills_index, source_skills, enabled_skills = filter_skills_index(disabled_skills)
     agents_index, source_agents, enabled_agents = filter_agents_index(disabled_agents, enabled_skills)
 
@@ -346,8 +473,12 @@ def install(profile: Path, home: Path, dry_run: bool = False) -> None:
     sync_whole_dir(REPO_ROOT / "hooks", claude_dir / "hooks", disabled_hooks, dry_run)
     sync_whole_dir(REPO_ROOT / "commands", claude_dir / "commands", set(), dry_run)
     sync_whole_dir(REPO_ROOT / "scripts", claude_dir / "scripts", set(), dry_run)
+    ensure_local_overlay(dry_run)
     sync_claude_settings(claude_dir, disabled_hooks, dry_run)
     sync_codex_hooks(codex_dir, disabled_hooks, dry_run)
+    install_python_deps(dry_run)
+    harden_permissions(claude_dir, dry_run)
+    warn_codex_cli_version()
     write_manifest(home, profile, disabled_skills, disabled_agents, disabled_hooks, dry_run)
 
     print(f"Installed filtered profile: {profile}")

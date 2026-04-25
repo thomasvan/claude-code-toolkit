@@ -129,7 +129,9 @@ def test_custom_install_uses_default_profile_and_writes_clean_settings(fake_home
     settings = json.loads((claude_dir / "settings.json").read_text(encoding="utf-8"))
     settings_text = json.dumps(settings)
     assert "stale-local-hook.py" not in settings_text
-    assert "localOnly" not in settings
+    # User-owned keys outside of hooks/attribution must survive the rewrite
+    # (matches install.sh behavior).
+    assert settings.get("localOnly") is True
     assert "sync-to-user-claude.py" not in settings_text
     assert "afk-mode.py" in settings_text
 
