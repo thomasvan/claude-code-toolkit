@@ -21,6 +21,9 @@ import json
 import os
 import shlex
 import sys
+import shutil
+import sqlite3
+import subprocess
 from pathlib import Path
 
 CLAUDE_DIR = Path.home() / ".claude"
@@ -386,6 +389,42 @@ def check_python_deps() -> list[dict]:
     return results
 
 
+def check_github_cli() -> list[dict]:
+    """Check that GitHub CLI is installed and authenticated for PR workflows."""
+    gh_path = shutil.which("gh")
+    if gh_path is None:
+        return [
+            {
+                "name": "github_cli",
+                "label": "GitHub CLI (gh)",
+                "passed": False,
+                "detail": "gh not found in PATH. Install GitHub CLI for /pr-workflow and /toolkit-evolution.",
+            }
+        ]
+
+    version_result = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=False)
+    version_line = version_result.stdout.splitlines()[0].strip() if version_result.stdout else gh_path
+
+    auth_result = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, check=False)
+    auth_output = (auth_result.stderr or auth_result.stdout).strip()
+    auth_detail = auth_output.splitlines()[0] if auth_output else "authenticated"
+
+    return [
+        {
+            "name": "github_cli",
+            "label": "GitHub CLI (gh)",
+            "passed": version_result.returncode == 0,
+            "detail": version_line,
+        },
+        {
+            "name": "github_auth",
+            "label": "GitHub CLI auth",
+            "passed": auth_result.returncode == 0,
+            "detail": auth_detail,
+        },
+    ]
+
+
 def check_learning_db() -> dict:
     """Check learning.db existence and table accessibility. Absence is acceptable for fresh installs."""
     import sqlite3
@@ -645,6 +684,7 @@ def run_all_checks() -> list[dict]:
     results.extend(check_hook_files())
     results.append(check_python_version())
     results.extend(check_python_deps())
+    results.extend(check_github_cli())
     results.append(check_learning_db())
     results.extend(check_permissions())
     results.extend(check_mcp_servers())

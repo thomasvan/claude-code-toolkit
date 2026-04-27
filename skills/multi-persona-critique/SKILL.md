@@ -8,7 +8,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
 context: fork
 routing:
   triggers:
@@ -106,9 +105,11 @@ Load the full persona specifications from `${CLAUDE_SKILL_DIR}/references/person
 
 ### Phase 3: DISPATCH (Parallel)
 
-**Goal**: Launch all 5 personas in parallel and collect independent critiques.
+**Goal**: Launch all 5 personas and collect independent critiques.
 
-Launch 5 agents using the Agent tool, one per persona. Each agent runs independently with no awareness of other personas.
+If the runtime exposes the `Agent` tool, launch 5 agents in parallel, one per persona. Each agent runs independently with no awareness of other personas.
+
+If `Agent` is unavailable, run 5 inline persona passes in isolated sections instead. For each pass, restate the proposals and that persona's rubric in full, write that persona's ratings before looking at prior persona output, and only synthesize after all 5 persona sections are complete.
 
 **The 5 parallel agents:**
 

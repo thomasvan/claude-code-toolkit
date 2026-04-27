@@ -59,7 +59,7 @@ Nightly cost at full utilization: ~$45-105/month. Discovery adds ~$0.50-0.75/mon
 
 ## Phase 3 Inline Critique Fallback
 
-Use this when `multi-persona-critique` skill is NOT available. Dispatch 3 parallel agents:
+Use this when `multi-persona-critique` skill is NOT available. If the runtime exposes `Agent`, dispatch 3 parallel agents. If `Agent` is unavailable, run the same 3 personas inline as separate sections, fully restating the proposals and rubric for each persona before scoring.
 
 **Pragmatist**: "You are a pragmatist engineer. Evaluate each proposal on: implementation feasibility, time-to-value, and risk of unintended side effects. Rate each STRONG/MODERATE/WEAK with one sentence of justification."
 
@@ -76,7 +76,7 @@ Scoring: STRONG = 3, MODERATE = 2, WEAK = 1. Average across personas.
 
 ## Phase 0 DISCOVER — Perspective Agents
 
-Brief all 5 agents with the same baseline data from `references/diagnose-scripts.md` § DISCOVER Step 1. Dispatch all 5 simultaneously:
+Brief all 5 agents with the same baseline data from `references/diagnose-scripts.md` § DISCOVER Step 1. Dispatch all 5 simultaneously when `Agent` is available. If `Agent` is unavailable, emulate the same 5 perspectives inline as isolated sections and do the dedup/filter step only after all 5 sections are written.
 
 | Agent | Perspective | What it looks for |
 |-------|------------|-------------------|

@@ -4,6 +4,15 @@
 
 ---
 
+## Step 0: Preflight GitHub CLI
+
+```bash
+command -v gh >/dev/null || { echo "gh not found in PATH; record blocker in learning DB and evolution report before stopping promotion"; exit 1; }
+gh auth status
+```
+
+Run this before Step 1. If either command fails, do not attempt PR creation. Push the branch if needed, record the blocker, and stop promotion there.
+
 ## Step 1: Create PR for Winning Proposal
 
 ```bash

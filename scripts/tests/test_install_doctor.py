@@ -133,3 +133,57 @@ def test_check_learning_db_uses_learning_subdir_v2_schema(tmp_path, monkeypatch)
     assert result["passed"] is True
     assert str(db_path) in result["detail"]
     assert "1 entries" in result["detail"]
+
+
+def test_check_github_cli_reports_missing_binary(monkeypatch) -> None:
+    monkeypatch.setattr(install_doctor.shutil, "which", lambda name: None)
+
+    results = install_doctor.check_github_cli()
+
+    assert results == [
+        {
+            "name": "github_cli",
+            "label": "GitHub CLI (gh)",
+            "passed": False,
+            "detail": "gh not found in PATH. Install GitHub CLI for /pr-workflow and /toolkit-evolution.",
+        }
+    ]
+
+
+def test_check_github_cli_reports_auth_status(monkeypatch) -> None:
+    class _Result:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    monkeypatch.setattr(install_doctor.shutil, "which", lambda name: "/usr/bin/gh")
+
+    def _fake_run(cmd, capture_output, text, check):
+        assert capture_output is True
+        assert text is True
+        assert check is False
+        if cmd == ["gh", "--version"]:
+            return _Result(0, stdout="gh version 2.70.0\n")
+        if cmd == ["gh", "auth", "status"]:
+            return _Result(1, stderr="not logged into any GitHub hosts\n")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(install_doctor.subprocess, "run", _fake_run)
+
+    results = install_doctor.check_github_cli()
+
+    assert results == [
+        {
+            "name": "github_cli",
+            "label": "GitHub CLI (gh)",
+            "passed": True,
+            "detail": "gh version 2.70.0",
+        },
+        {
+            "name": "github_auth",
+            "label": "GitHub CLI auth",
+            "passed": False,
+            "detail": "not logged into any GitHub hosts",
+        },
+    ]

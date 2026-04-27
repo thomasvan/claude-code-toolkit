@@ -9,7 +9,6 @@ allowed-tools:
   - Grep
   - Write
   - Edit
-  - Agent
 routing:
   force_route: true
   triggers:
@@ -37,6 +36,8 @@ Verify your Claude Code Toolkit installation, diagnose issues, and get oriented.
 ```bash
 python3 ~/.claude/scripts/install-doctor.py check
 ```
+
+The report includes GitHub CLI status. If `GitHub CLI (gh)` or `GitHub CLI auth` fails, call out that PR-oriented workflows such as `/pr-workflow` and `/toolkit-evolution` will be blocked until `gh` is installed and authenticated.
 
 If the script is not found at `scripts/install-doctor.py`, try `~/.claude/scripts/install-doctor.py`.
 
@@ -203,3 +204,6 @@ Run `chmod +x install.sh` first.
 
 ### Error: Python not found
 The toolkit requires Python 3.10+. Guide the user to install Python for their platform.
+
+### Error: GitHub CLI not found or not authenticated
+Explain that `gh` is required for toolkit PR workflows. Guide the user to install GitHub CLI, run `gh auth login`, then rerun `/install` to confirm the checks pass.

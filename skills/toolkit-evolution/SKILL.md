@@ -12,7 +12,6 @@ allowed-tools:
   - Bash
   - Glob
   - Grep
-  - Agent
   - Skill
 routing:
   triggers:
@@ -37,6 +36,8 @@ routing:
 Schedulable (nightly) or manually-invoked 7-phase pipeline for continuous toolkit self-improvement. Discovers gaps, diagnoses problems from evidence, proposes solutions, critiques via multi-persona review, builds winners on isolated branches, A/B tests, and promotes via PR.
 
 Nightly sibling of `auto-dream` (2:07 AM consolidates memories; 3:07 AM this skill diagnoses and builds). They feed each other: dream's graduated learnings inform evolution's diagnosis; evolution's results become dream's next input.
+
+If the current runtime does not expose `Agent`, `Task`, or `gh`, do not stop at the missing tool. Use the inline/manual fallbacks referenced below, and if promotion is blocked by missing `gh`, record the blocker before stopping.
 
 Invoke: `/evolve`, `/evolve routing`, `/evolve hooks`, `/evolve --discover`. Cron setup in `references/evolve-anti-patterns.md` § Scheduling.
 
@@ -69,7 +70,7 @@ Collect current toolkit state using the briefing data commands from `references/
 
 **Step 2: Dispatch 5 perspective agents in parallel**
 
-See `references/evolve-anti-patterns.md` § Phase 0 DISCOVER for the full agent table and proposal format. Dispatch all 5 simultaneously.
+See `references/evolve-anti-patterns.md` § Phase 0 DISCOVER for the full agent table and proposal format. Dispatch all 5 simultaneously. If `Agent` is unavailable in the current runtime, run the 5 perspectives inline as isolated sections instead: fully restate the baseline for each perspective, draft each perspective's proposals before reading the others, then synthesize after all 5 are written.
 
 **Step 3: Deduplicate and filter** -- remove duplicates of existing skills (check `skills/INDEX.json`), remove proposals with no evidence (require at least one concrete data point), group similar proposals and note convergent evidence.
 
@@ -187,7 +188,7 @@ Skill(skill="multi-persona-critique", args="Evaluate these toolkit improvement p
 
 **Step 2b: If NOT available -- use inline fallback**
 
-See `references/evolve-anti-patterns.md` § Phase 3 Inline Critique Fallback for the 3-agent dispatch prompts and scoring table.
+See `references/evolve-anti-patterns.md` § Phase 3 Inline Critique Fallback for the persona prompts and scoring table. If `Agent` is unavailable, execute the fallback inline in isolated sections rather than stopping.
 
 **Step 3: Synthesize consensus**
 
@@ -216,6 +217,8 @@ Take the top 1-3 proposals rated STRONG by consensus. Do not pad with MODERATE p
 
 For each winner, dispatch an implementation agent in an isolated context. See `references/evolve-scripts.md` § Build Dispatch for the proposal-type to implementation-approach table.
 
+If `Agent` is unavailable, implement the winner directly in the main conversation (or via a specialized skill), while keeping the same branch, commit, and validation requirements.
+
 Each implementation must create a feature branch `feat/evolve-{proposal-slug}` and commit with a descriptive message.
 
 **Step 3: Validate** -- run `python3 -m scripts.skill_eval.quick_validate skills/{skill-name}`, `python3 -m py_compile {script}`, and `bash -n {script}` on each implementation.
@@ -234,7 +237,7 @@ For each implementation, create 3-5 realistic test prompts that exercise the cha
 
 **Step 2: Run comparisons**
 
-See `references/evolve-scripts.md` § Validate Run for the skill-eval command and manual fallback pattern.
+See `references/evolve-scripts.md` § Validate Run for the skill-eval command and manual fallback pattern. If automation depends on unavailable tooling (for example `Task`), use the manual fallback instead of skipping validation.
 
 **Step 3: Evaluate results**
 
@@ -252,6 +255,8 @@ Win condition for each implementation:
 **Goal**: Ship winners via PR, record all outcomes in the learning database.
 
 **Step 1: Handle winners (WIN status)**
+
+Before creating a PR, preflight `gh` availability using the command from `references/evolve-scripts.md` § Step 0. If `gh` is unavailable or unauthenticated, push the branch, record the blocker in the learning DB and evolution report, and stop promotion there instead of failing silently.
 
 For each winning implementation, create a PR using the template from `references/evolve-scripts.md` § Step 1, then merge. After creating the PR, run pr-review to validate, then merge.
 
