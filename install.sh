@@ -10,6 +10,15 @@
 #   ./install.sh --copy       # Copy files (recommended for stability)
 #   ./install.sh --uninstall  # Remove installation
 #   ./install.sh --dry-run    # Show what would happen without making changes
+#   ./install.sh --configure  # Build/refresh .local/profile.yaml interactively, then install
+#   ./install.sh --configure-only
+#                             # Build/refresh .local/profile.yaml and exit
+#
+# Profile filtering (opt-in):
+#   Run ./install.sh --configure to pick which skills/agents/hooks to disable.
+#   The selections are saved to .local/profile.yaml and honored by every
+#   subsequent ./install.sh run. With no .local/profile.yaml present, install
+#   behaves exactly as before (full toolkit installed).
 #
 # What this script does:
 #   1. Verifies Python 3.10+ is available
@@ -50,6 +59,8 @@ echo ""
 MODE=""
 DRY_RUN=false
 FORCE=false
+RUN_CONFIGURE=false
+CONFIGURE_ONLY=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --symlink)
@@ -76,18 +87,34 @@ while [[ $# -gt 0 ]]; do
             FORCE=true
             shift
             ;;
+        --configure)
+            RUN_CONFIGURE=true
+            shift
+            ;;
+        --configure-only)
+            RUN_CONFIGURE=true
+            CONFIGURE_ONLY=true
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--symlink|--copy|--uninstall|--rollback|--dry-run|--force]"
+            echo "Usage: $0 [--symlink|--copy|--uninstall|--rollback|--dry-run|--force|--configure|--configure-only]"
             echo ""
             echo "Options:"
-            echo "  --symlink    Create symlinks to this repo (recommended for development)"
-            echo "  --copy       Copy files to ~/.claude (recommended for stability)"
-            echo "  --uninstall  Remove the installation"
-            echo "  --rollback   Restore settings.json from the most recent backup"
-            echo "  --dry-run    Show what would happen without making changes"
-            echo "  --force      Replace existing directories without prompting"
+            echo "  --symlink         Create symlinks to this repo (recommended for development)"
+            echo "  --copy            Copy files to ~/.claude (recommended for stability)"
+            echo "  --uninstall       Remove the installation"
+            echo "  --rollback        Restore settings.json from the most recent backup"
+            echo "  --dry-run         Show what would happen without making changes"
+            echo "  --force           Replace existing directories without prompting"
+            echo "  --configure       Build/refresh .local/profile.yaml interactively, then install"
+            echo "  --configure-only  Build/refresh .local/profile.yaml and exit"
             echo ""
             echo "If no option provided, will prompt interactively."
+            echo ""
+            echo "Profile filtering (opt-in):"
+            echo "  Run --configure to choose which skills/agents/hooks to disable."
+            echo "  Selections are saved to .local/profile.yaml and honored on every"
+            echo "  subsequent install. Without that file, the full toolkit is installed."
             exit 0
             ;;
         *)
@@ -646,7 +673,63 @@ fi
 check_python
 detect_pip_command
 
-# Create ~/.claude if needed
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile filtering (opt-in via .local/profile.yaml; --configure to build/edit)
+# ─────────────────────────────────────────────────────────────────────────────
+PROFILE_FILE="${SCRIPT_DIR}/.local/profile.yaml"
+FILTER_MODE=false
+DISABLED_SKILLS=()
+DISABLED_AGENTS=()
+DISABLED_HOOKS=()
+
+# Run interactive configurator when requested.
+if [ "$RUN_CONFIGURE" = true ]; then
+    echo ""
+    echo -e "${YELLOW}Configuring profile (.local/profile.yaml)...${NC}"
+    if [ "$DRY_RUN" = true ]; then
+        echo -e "${BLUE}  Would run: ${PYTHON_CMD} ${SCRIPT_DIR}/scripts/configure-profile.py${NC}"
+    else
+        if ! "$PYTHON_CMD" "${SCRIPT_DIR}/scripts/configure-profile.py" --output "$PROFILE_FILE"; then
+            echo -e "${RED}  ✗ Profile configuration aborted; nothing was installed.${NC}"
+            exit 1
+        fi
+    fi
+    if [ "$CONFIGURE_ONLY" = true ]; then
+        echo -e "${GREEN}  ✓ Profile saved. Re-run ./install.sh to apply.${NC}"
+        exit 0
+    fi
+fi
+
+# Load disable lists when a profile exists. Otherwise behavior matches the
+# pre-filtering installer exactly (no items disabled).
+if [ -f "$PROFILE_FILE" ]; then
+    FILTER_MODE=true
+    echo ""
+    echo -e "${YELLOW}Loading profile filter (.local/profile.yaml)...${NC}"
+    while IFS= read -r line; do
+        [ -n "$line" ] && DISABLED_SKILLS+=("$line")
+    done < <("$PYTHON_CMD" "${SCRIPT_DIR}/scripts/load-profile.py" --list skills --profile "$PROFILE_FILE")
+    while IFS= read -r line; do
+        [ -n "$line" ] && DISABLED_AGENTS+=("$line")
+    done < <("$PYTHON_CMD" "${SCRIPT_DIR}/scripts/load-profile.py" --list agents --profile "$PROFILE_FILE")
+    while IFS= read -r line; do
+        [ -n "$line" ] && DISABLED_HOOKS+=("$line")
+    done < <("$PYTHON_CMD" "${SCRIPT_DIR}/scripts/load-profile.py" --list hooks --profile "$PROFILE_FILE")
+    echo -e "${GREEN}  ✓ Disabled: ${#DISABLED_SKILLS[@]} skill(s), ${#DISABLED_AGENTS[@]} agent(s), ${#DISABLED_HOOKS[@]} hook(s)${NC}"
+fi
+
+# Helper: 0 if $1 appears in the remaining args, 1 otherwise.
+is_in_list() {
+    local needle=$1
+    shift
+    local item
+    for item in "$@"; do
+        [ "$item" = "$needle" ] && return 0
+    done
+    return 1
+}
+
+
 echo ""
 echo -e "${YELLOW}Setting up ~/.claude directory...${NC}"
 if [ "$DRY_RUN" = true ]; then
@@ -786,10 +869,123 @@ sync_codex_entry() {
     sync_mirror_entry "$1" "$2" "Codex"
 }
 
+# install_component_filtered <component> <DISABLED_VAR_NAME>
+#   Per-item install of agents/skills/hooks that honors a disable list.
+#   Only used when FILTER_MODE=true (i.e. .local/profile.yaml exists).
+#   For agents and hooks the unit is a single file; for skills it's a directory.
+#   Sibling resources (agents/<name>/ reference dirs, hooks/lib/, hooks/tests/)
+#   are also installed when present.
+install_component_filtered() {
+    local component=$1
+    local disabled_var=$2[@]
+    local disabled=("${!disabled_var}")
+    local source_dir="${SCRIPT_DIR}/${component}"
+    local target_dir="${CLAUDE_DIR}/${component}"
+    local skipped=0
+    local installed=0
+
+    # If the destination exists as a symlink (legacy whole-dir install) or as
+    # a non-directory, replace it with a real directory so we can populate it.
+    if [ -L "$target_dir" ] || [ -f "$target_dir" ]; then
+        if [ "$DRY_RUN" = true ]; then
+            echo -e "${BLUE}  Would replace existing ${target_dir} with a real directory${NC}"
+        else
+            rm -f "$target_dir"
+        fi
+    fi
+    if [ "$DRY_RUN" = false ]; then
+        mkdir -p "$target_dir"
+    fi
+
+    local item name target rel
+    for item in "${source_dir}"/*; do
+        [ -e "$item" ] || continue
+        name=$(basename "$item")
+
+        # Component-specific disable-key derivation.
+        case "$component" in
+            agents)
+                # Profile lists agents by stem (no .md). Reference dirs
+                # (agents/<name>/) ride along with the .md file.
+                if [[ "$name" == *.md ]]; then
+                    rel="${name%.md}"
+                elif [ -d "$item" ]; then
+                    rel="$name"
+                else
+                    rel="$name"
+                fi
+                ;;
+            skills)
+                # Skills are directories; profile lists by directory name.
+                rel="$name"
+                ;;
+            hooks)
+                # Profile lists hooks by full filename (e.g. foo.py).
+                # Always keep helper subdirs like lib/, tests/.
+                if [ -d "$item" ]; then
+                    rel=""
+                else
+                    rel="$name"
+                fi
+                ;;
+            *)
+                rel="$name"
+                ;;
+        esac
+
+        if [ -n "$rel" ] && is_in_list "$rel" "${disabled[@]}"; then
+            skipped=$((skipped + 1))
+            if [ "$DRY_RUN" = true ]; then
+                echo -e "${BLUE}  Would skip disabled: ${component}/${name}${NC}"
+            fi
+            continue
+        fi
+
+        target="${target_dir}/${name}"
+        if [ -e "$target" ] || [ -L "$target" ]; then
+            if [ "$DRY_RUN" = true ]; then
+                echo -e "${BLUE}  Would replace: ${target}${NC}"
+            else
+                rm -rf "$target"
+            fi
+        fi
+
+        if [ "$MODE" = "symlink" ]; then
+            if [ "$DRY_RUN" = true ]; then
+                echo -e "${BLUE}  Would symlink: ${item} -> ${target}${NC}"
+            else
+                ln -s "$item" "$target"
+            fi
+        else
+            if [ "$DRY_RUN" = true ]; then
+                echo -e "${BLUE}  Would copy: ${item} -> ${target}${NC}"
+            else
+                if [ -d "$item" ]; then
+                    cp -r "$item" "$target"
+                else
+                    cp "$item" "$target"
+                fi
+            fi
+        fi
+        installed=$((installed + 1))
+    done
+
+    echo -e "${GREEN}  ✓ ${component}: ${installed} installed, ${skipped} skipped${NC}"
+}
+
 # Install main components
 for component in agents skills hooks commands scripts; do
     if [ -d "${SCRIPT_DIR}/${component}" ]; then
-        install_component "$component"
+        if [ "$FILTER_MODE" = true ]; then
+            case "$component" in
+                agents)   install_component_filtered "$component" DISABLED_AGENTS ;;
+                skills)   install_component_filtered "$component" DISABLED_SKILLS ;;
+                hooks)    install_component_filtered "$component" DISABLED_HOOKS  ;;
+                *)        install_component "$component" ;;
+            esac
+        else
+            install_component "$component"
+        fi
     fi
 done
 
@@ -836,7 +1032,12 @@ echo -e "${YELLOW}Syncing Codex skills mirror...${NC}"
 CODEX_ENTRY_COUNT=0
 for item in "${SCRIPT_DIR}/skills/"*; do
     [ -e "$item" ] || continue
-    target="${CODEX_SKILLS_DIR}/$(basename "$item")"
+    name=$(basename "$item")
+    if [ "$FILTER_MODE" = true ] && is_in_list "$name" "${DISABLED_SKILLS[@]}"; then
+        [ "$DRY_RUN" = true ] && echo -e "${BLUE}  Would skip disabled Codex skill: ${name}${NC}"
+        continue
+    fi
+    target="${CODEX_SKILLS_DIR}/${name}"
     sync_codex_entry "$item" "$target"
     CODEX_ENTRY_COUNT=$((CODEX_ENTRY_COUNT + 1))
 done
@@ -867,7 +1068,19 @@ echo -e "${YELLOW}Syncing Codex agents mirror...${NC}"
 CODEX_AGENT_COUNT=0
 for item in "${SCRIPT_DIR}/agents/"*; do
     [ -e "$item" ] || continue
-    target="${CODEX_AGENTS_DIR}/$(basename "$item")"
+    name=$(basename "$item")
+    # Profile lists agents by stem (no .md). Reference dirs (agents/<name>/)
+    # ride along with the .md file.
+    if [[ "$name" == *.md ]]; then
+        agent_key="${name%.md}"
+    else
+        agent_key="$name"
+    fi
+    if [ "$FILTER_MODE" = true ] && is_in_list "$agent_key" "${DISABLED_AGENTS[@]}"; then
+        [ "$DRY_RUN" = true ] && echo -e "${BLUE}  Would skip disabled Codex agent: ${name}${NC}"
+        continue
+    fi
+    target="${CODEX_AGENTS_DIR}/${name}"
     sync_codex_entry "$item" "$target"
     CODEX_AGENT_COUNT=$((CODEX_AGENT_COUNT + 1))
 done
@@ -895,6 +1108,25 @@ if [ -f "$CODEX_HOOKS_ALLOWLIST" ]; then
         mkdir -p "$CODEX_HOOKS_DIR"
     fi
 
+    # When the user has a profile with disabled hooks, filter the allowlist
+    # to a tempfile and use that for both the per-line copy loop and the
+    # hooks.json generator. This keeps Codex consistent with ~/.claude.
+    EFFECTIVE_ALLOWLIST="$CODEX_HOOKS_ALLOWLIST"
+    if [ "$FILTER_MODE" = true ] && [ "${#DISABLED_HOOKS[@]}" -gt 0 ]; then
+        EFFECTIVE_ALLOWLIST=$(mktemp -t codex-allowlist.XXXXXX)
+        DISABLED_HOOKS_FILE=$(mktemp -t codex-disabled-hooks.XXXXXX)
+        printf '%s\n' "${DISABLED_HOOKS[@]}" > "$DISABLED_HOOKS_FILE"
+        if ! "$PYTHON_CMD" "${SCRIPT_DIR}/scripts/filter-codex-allowlist.py" \
+                --input "$CODEX_HOOKS_ALLOWLIST" \
+                --disabled "$DISABLED_HOOKS_FILE" \
+                --output "$EFFECTIVE_ALLOWLIST"; then
+            echo -e "${RED}  ✗ Failed to filter Codex hooks allowlist${NC}"
+            EFFECTIVE_ALLOWLIST="$CODEX_HOOKS_ALLOWLIST"
+        fi
+        # shellcheck disable=SC2064
+        trap "rm -f '$EFFECTIVE_ALLOWLIST' '$DISABLED_HOOKS_FILE'" EXIT
+    fi
+
     # Parse allowlist and mirror each allowlisted hook file.
     # Format per line: EVENT:filename [matcher]
     # Comments (#) and blank lines are ignored.
@@ -918,7 +1150,7 @@ if [ -f "$CODEX_HOOKS_ALLOWLIST" ]; then
         target_file="${CODEX_HOOKS_DIR}/${filename}"
         sync_codex_entry "$source_file" "$target_file"
         CODEX_HOOK_COUNT=$((CODEX_HOOK_COUNT + 1))
-    done < "$CODEX_HOOKS_ALLOWLIST"
+    done < "$EFFECTIVE_ALLOWLIST"
 
     # Also mirror the hooks/lib directory so intra-hook imports resolve
     # (hook_utils, injection_patterns, stdin_timeout, usage_db, etc.).
@@ -933,7 +1165,7 @@ if [ -f "$CODEX_HOOKS_ALLOWLIST" ]; then
         echo -e "${BLUE}  Would generate: ${CODEX_HOOKS_JSON}${NC}"
     else
         if $PYTHON_CMD "${SCRIPT_DIR}/scripts/generate-codex-hooks-json.py" \
-            --allowlist "$CODEX_HOOKS_ALLOWLIST" \
+            --allowlist "$EFFECTIVE_ALLOWLIST" \
             --output "$CODEX_HOOKS_JSON" \
             --codex-hooks-dir "$CODEX_HOOKS_DIR" 2>&1; then
             echo -e "${GREEN}  ✓ Generated ${CODEX_HOOKS_JSON}${NC}"
@@ -980,7 +1212,12 @@ echo -e "${YELLOW}Syncing Gemini skills mirror...${NC}"
 GEMINI_ENTRY_COUNT=0
 for item in "${SCRIPT_DIR}/skills/"*; do
     [ -e "$item" ] || continue
-    target="${GEMINI_SKILLS_DIR}/$(basename "$item")"
+    name=$(basename "$item")
+    if [ "$FILTER_MODE" = true ] && is_in_list "$name" "${DISABLED_SKILLS[@]}"; then
+        [ "$DRY_RUN" = true ] && echo -e "${BLUE}  Would skip disabled Gemini skill: ${name}${NC}"
+        continue
+    fi
+    target="${GEMINI_SKILLS_DIR}/${name}"
     sync_mirror_entry "$item" "$target" "Gemini"
     GEMINI_ENTRY_COUNT=$((GEMINI_ENTRY_COUNT + 1))
 done
@@ -1011,7 +1248,17 @@ echo -e "${YELLOW}Syncing Gemini agents mirror...${NC}"
 GEMINI_AGENT_COUNT=0
 for item in "${SCRIPT_DIR}/agents/"*; do
     [ -e "$item" ] || continue
-    target="${GEMINI_AGENTS_DIR}/$(basename "$item")"
+    name=$(basename "$item")
+    if [[ "$name" == *.md ]]; then
+        agent_key="${name%.md}"
+    else
+        agent_key="$name"
+    fi
+    if [ "$FILTER_MODE" = true ] && is_in_list "$agent_key" "${DISABLED_AGENTS[@]}"; then
+        [ "$DRY_RUN" = true ] && echo -e "${BLUE}  Would skip disabled Gemini agent: ${name}${NC}"
+        continue
+    fi
+    target="${GEMINI_AGENTS_DIR}/${name}"
     sync_mirror_entry "$item" "$target" "Gemini"
     GEMINI_AGENT_COUNT=$((GEMINI_AGENT_COUNT + 1))
 done
@@ -1031,7 +1278,20 @@ echo -e "${YELLOW}Syncing Gemini hooks mirror...${NC}"
 GEMINI_HOOK_COUNT=0
 GEMINI_HOOKS_ALLOWLIST="${SCRIPT_DIR}/scripts/gemini-hooks-allowlist.txt"
 
-if [ -f "$GEMINI_HOOKS_ALLOWLIST" ]; then
+# When filtering, build an effective allowlist with disabled hooks removed.
+EFFECTIVE_GEMINI_ALLOWLIST="$GEMINI_HOOKS_ALLOWLIST"
+if [ "$FILTER_MODE" = true ] && [ "${#DISABLED_HOOKS[@]}" -gt 0 ] && [ -f "$GEMINI_HOOKS_ALLOWLIST" ]; then
+    EFFECTIVE_GEMINI_ALLOWLIST=$(mktemp -t gemini-hooks-allowlist.XXXXXX)
+    GEMINI_DISABLED_HOOKS_FILE=$(mktemp -t gemini-disabled-hooks.XXXXXX)
+    printf '%s\n' "${DISABLED_HOOKS[@]}" > "$GEMINI_DISABLED_HOOKS_FILE"
+    $PYTHON_CMD "${SCRIPT_DIR}/scripts/filter-codex-allowlist.py" \
+        --input "$GEMINI_HOOKS_ALLOWLIST" \
+        --disabled "$GEMINI_DISABLED_HOOKS_FILE" \
+        --output "$EFFECTIVE_GEMINI_ALLOWLIST"
+    trap "rm -f '$EFFECTIVE_GEMINI_ALLOWLIST' '$GEMINI_DISABLED_HOOKS_FILE' '${EFFECTIVE_ALLOWLIST:-}' '${DISABLED_HOOKS_FILE:-}'" EXIT
+fi
+
+if [ -f "$EFFECTIVE_GEMINI_ALLOWLIST" ]; then
     # Ensure hooks directory exists
     if [ "$DRY_RUN" = true ]; then
         echo -e "${BLUE}  Would create: ${GEMINI_HOOKS_DIR}${NC}"
@@ -1058,7 +1318,7 @@ if [ -f "$GEMINI_HOOKS_ALLOWLIST" ]; then
         target_file="${GEMINI_HOOKS_DIR}/${filename}"
         sync_mirror_entry "$source_file" "$target_file" "Gemini"
         GEMINI_HOOK_COUNT=$((GEMINI_HOOK_COUNT + 1))
-    done < "$GEMINI_HOOKS_ALLOWLIST"
+    done < "$EFFECTIVE_GEMINI_ALLOWLIST"
 
     # Also mirror the hooks/lib directory so intra-hook imports resolve.
     if [ -d "${SCRIPT_DIR}/hooks/lib" ]; then
@@ -1072,7 +1332,7 @@ if [ -f "$GEMINI_HOOKS_ALLOWLIST" ]; then
         echo -e "${BLUE}  Would merge hooks into: ${GEMINI_SETTINGS}${NC}"
     else
         if $PYTHON_CMD "${SCRIPT_DIR}/scripts/generate-gemini-settings-hooks.py" \
-            --allowlist "$GEMINI_HOOKS_ALLOWLIST" \
+            --allowlist "$EFFECTIVE_GEMINI_ALLOWLIST" \
             --output "$GEMINI_SETTINGS" \
             --gemini-hooks-dir "$GEMINI_HOOKS_DIR" 2>&1; then
             echo -e "${GREEN}  ✓ Merged hooks into ${GEMINI_SETTINGS}${NC}"
@@ -1154,16 +1414,66 @@ elif [ -f "${SCRIPT_DIR}/.claude/settings.json" ]; then
     BACKUP_TS=$(date +%Y%m%d-%H%M%S)
     cp "$SETTINGS_FILE" "${SETTINGS_FILE}.backup.${BACKUP_TS}"
 
-    # Sync hooks and attribution from repo settings — repo is authoritative
+    # Sync hooks and attribution from repo settings — repo is authoritative.
+    # Export the disabled-hook list (one per line) so the inline Python can
+    # filter the hooks block before writing.
+    if [ "$FILTER_MODE" = true ] && [ "${#DISABLED_HOOKS[@]}" -gt 0 ]; then
+        export INSTALL_DISABLED_HOOKS
+        INSTALL_DISABLED_HOOKS=$(printf '%s\n' "${DISABLED_HOOKS[@]}")
+    else
+        export INSTALL_DISABLED_HOOKS=""
+    fi
+
     $PYTHON_CMD -c "
-import json, os
+import json, os, sys
+
+def hook_filename(command: str):
+    marker = '/hooks/'
+    if marker not in command:
+        return None
+    tail = command.split(marker, 1)[1]
+    return tail.split('\"', 1)[0].split(\"'\", 1)[0].split()[0]
+
+def filter_hooks(hooks_block, disabled):
+    if not isinstance(hooks_block, dict) or not disabled:
+        return hooks_block
+    out = {}
+    for event, groups in hooks_block.items():
+        if not isinstance(groups, list):
+            out[event] = groups
+            continue
+        kept_groups = []
+        for group in groups:
+            if not isinstance(group, dict):
+                kept_groups.append(group)
+                continue
+            entries = group.get('hooks')
+            if not isinstance(entries, list):
+                kept_groups.append(group)
+                continue
+            kept = []
+            for entry in entries:
+                cmd = entry.get('command', '') if isinstance(entry, dict) else ''
+                fname = hook_filename(cmd)
+                if fname and fname in disabled:
+                    continue
+                kept.append(entry)
+            if kept:
+                ng = dict(group)
+                ng['hooks'] = kept
+                kept_groups.append(ng)
+        if kept_groups:
+            out[event] = kept_groups
+    return out
+
 repo = json.load(open('${SCRIPT_DIR}/.claude/settings.json'))
 dst = '${SETTINGS_FILE}'
 try:
     glob = json.load(open(dst, encoding='utf-8'))
 except (FileNotFoundError, json.JSONDecodeError):
     glob = {}
-glob['hooks'] = repo.get('hooks', {})
+disabled = {line.strip() for line in os.environ.get('INSTALL_DISABLED_HOOKS', '').splitlines() if line.strip()}
+glob['hooks'] = filter_hooks(repo.get('hooks', {}), disabled)
 glob.setdefault('attribution', repo.get('attribution', {'commit': '', 'pr': ''}))
 tmp = dst + '.tmp'
 with open(tmp, 'w', encoding='utf-8') as f:
@@ -1171,8 +1481,12 @@ with open(tmp, 'w', encoding='utf-8') as f:
     f.flush()
     os.fsync(f.fileno())
 os.rename(tmp, dst)
-print('  Hooks configured from .claude/settings.json')
+if disabled:
+    print(f'  Hooks configured from .claude/settings.json ({len(disabled)} disabled)')
+else:
+    print('  Hooks configured from .claude/settings.json')
 "
+    unset INSTALL_DISABLED_HOOKS
 else
     echo -e "${YELLOW}  Warning: ${SCRIPT_DIR}/.claude/settings.json not found, skipping hook sync${NC}"
 fi
