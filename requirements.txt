@@ -32,6 +32,9 @@
 # Required for evals harness (agent/skill grading)
 PyYAML>=6.0
 
+# Required for ./install.sh --configure (interactive profile picker)
+questionary>=2.0
+
 # Required for WordPress integration scripts (optional)
 requests>=2.28
 python-dotenv>=1.0
